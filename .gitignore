@@ -1,0 +1,39 @@
+# Datasets
+fruits-360/
+Final_Fruit_Dataset_*/
+YOLO_*/
+*.zip
+*.tar
+*.gz
+
+# Training runs and outputs
+runs/
+runs_cls/
+runs_od25/
+
+# Model weights
+*.pt
+*.onnx
+*.engine
+
+# Dependencies
+ultralytics/
+node_modules/
+venv/
+.venv/
+env/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
