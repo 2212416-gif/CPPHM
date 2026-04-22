@@ -1,13 +1,13 @@
 import os
 import shutil
 import random
-from PIL import Image
+import cv2
+import numpy as np
 
 # Cấu hình đường dẫn
 SOURCE_DIR = r"D:\CPPHM\Final_Fruit_Dataset_500Plus"
 DEST_DIR   = r"D:\CPPHM\YOLO_OD_25_Dataset"
 
-# 25 lớp trái cây với tên rõ ràng cho file YAML
 TARGET_CLASSES = [
     "Apple Braeburn", "Banana", "Tomato", "Orange", "Lemon",
     "Avocado", "Blueberry", "Cantaloupe", "Carambula", "Cherry",
@@ -16,7 +16,6 @@ TARGET_CLASSES = [
     "Pepper Red", "Pineapple", "Pomegranate", "Strawberry", "Watermelon"
 ]
 
-# Tên hiển thị thân thiện bằng Tiếng Việt (hiện trên màn hình Camera)
 DISPLAY_NAMES = [
     "Tao", "Chuoi", "Ca chua", "Cam", "Chanh",
     "Qua Bo", "Viet Quat", "Dua Vang", "Khe", "Anh Dao",
@@ -25,75 +24,87 @@ DISPLAY_NAMES = [
     "Ot Chuong Do", "Thom Dua", "Luu", "Dau Tay", "Dua Hau"
 ]
 
-def get_foreground_bbox(img):
-    """Tự động tính Bounding Box bằng cách loại bỏ nền trắng."""
-    img_gray = img.convert("L")
-    bbox = img_gray.point(lambda p: p < 250 and 255).getbbox()
-    if bbox:
-        left, upper, right, lower = bbox
-        width, height = img.size
-        x_center = ((left + right) / 2.0) / width
-        y_center = ((upper + lower) / 2.0) / height
-        bw = min(1.0, (right - left) / width * 1.05)
-        bh = min(1.0, (lower - upper) / height * 1.05)
-        return x_center, y_center, bw, bh
-    else:
-        return 0.5, 0.5, 0.9, 0.9
+def get_accurate_bbox_cv2(img_path):
+    """Sử dụng OpenCV để tìm khung hình cực chuẩn cho trái cây."""
+    img = cv2.imread(img_path)
+    if img is None:
+        return 0.5, 0.5, 0.8, 0.8
+    
+    # Chuyển sang ảnh xám
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # Ngưỡng: Lấy những vùng tối hơn màu trắng nền (thường nền trắng là 255)
+    # Ta lấy ngưỡng 250 để loại bỏ bóng đổ nhẹ
+    _, thresh = cv2.threshold(gray, 250, 255, cv2.THRESH_BINARY_INV)
+    
+    # Tìm các điểm ảnh không phải nền trắng
+    coords = cv2.findNonZero(thresh)
+    if coords is not None:
+        x, y, w, h = cv2.boundingRect(coords)
+        height, width = gray.shape
+        
+        # Tính toán format YOLO (0..1)
+        xc = (x + w/2) / width
+        yc = (y + h/2) / height
+        bw = w / width
+        bh = h / height
+        
+        # Thêm 2% padding cho đẹp
+        bw = min(1.0, bw * 1.02)
+        bh = min(1.0, bh * 1.02)
+        return xc, yc, bw, bh
+    
+    return 0.5, 0.5, 0.8, 0.8
 
-def prepare_od_dataset():
+def prepare_od_dataset_v2():
     if not os.path.exists(SOURCE_DIR):
         print(f"Loi: Khong tim thay {SOURCE_DIR}")
         return
 
-    # Tạo cấu trúc thư mục YOLO OD
+    # Xoá cũ tạo mới để đảm bảo sạch nhãn
+    if os.path.exists(DEST_DIR):
+        print("Dang lam sach thu muc cu...")
+        shutil.rmtree(DEST_DIR)
+
     for folder in ['images/train', 'images/val', 'labels/train', 'labels/val']:
         os.makedirs(os.path.join(DEST_DIR, folder), exist_ok=True)
 
-    print("=== BAT DAU TAO YOLO OD DATASET CHO 25 LOP TRAI CAY ===")
+    print("=== BAT DAU TAO DATASET OD CHUAN XAC CAO (25 LOP) ===")
 
     for class_idx, class_name in enumerate(TARGET_CLASSES):
         class_dir = os.path.join(SOURCE_DIR, class_name)
         if not os.path.exists(class_dir):
-            print(f"  Canh bao: Khong tim thay [{class_name}], bo qua.")
             continue
 
-        all_images = [f for f in os.listdir(class_dir)
-                      if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+        all_images = [f for f in os.listdir(class_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
         random.shuffle(all_images)
-        all_images = all_images[:500]  # Tối đa 500 ảnh/lớp
-        print(f"  [{class_idx+1}/25] {class_name}: {len(all_images)} anh")
+        all_images = all_images[:500] 
+        print(f"  Dạng xử lý: {class_name}...")
 
         split_idx = int(0.8 * len(all_images))
-        train_imgs = all_images[:split_idx]
-        val_imgs   = all_images[split_idx:]
+        for i, img_file in enumerate(all_images):
+            split_name = "train" if i < split_idx else "val"
+            src_path = os.path.join(class_dir, img_file)
+            new_name = f"{class_name.replace(' ', '_')}_{img_file}"
+            
+            # Copy ảnh
+            dst_img = os.path.join(DEST_DIR, 'images', split_name, new_name)
+            shutil.copy2(src_path, dst_img)
 
-        for split_name, img_subset in zip(["train", "val"], [train_imgs, val_imgs]):
-            for img_file in img_subset:
-                src_path = os.path.join(class_dir, img_file)
-                safe_name = class_name.replace(' ', '_')
-                new_basename = f"{safe_name}_{img_file}"
+            # Tính Bbox chuẩn
+            xc, yc, w, h = get_accurate_bbox_cv2(src_path)
 
-                # Copy ảnh
-                dst_img = os.path.join(DEST_DIR, 'images', split_name, new_basename)
-                shutil.copy2(src_path, dst_img)
+            # Ghi nhãn
+            txt_name = new_name.rsplit('.', 1)[0] + '.txt'
+            dst_lbl  = os.path.join(DEST_DIR, 'labels', split_name, txt_name)
+            with open(dst_lbl, 'w') as f:
+                f.write(f"{class_idx} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f}\n")
 
-                # Tính và ghi Bounding Box
-                try:
-                    with Image.open(src_path) as img:
-                        xc, yc, w, h = get_foreground_bbox(img)
-                except Exception:
-                    xc, yc, w, h = 0.5, 0.5, 0.9, 0.9
-
-                txt_name = new_basename.rsplit('.', 1)[0] + '.txt'
-                dst_lbl  = os.path.join(DEST_DIR, 'labels', split_name, txt_name)
-                with open(dst_lbl, 'w') as f:
-                    f.write(f"{class_idx} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f}\n")
-
-    # Tạo file YAML cấu hình
+    # File YAML
     yaml_path = os.path.join(DEST_DIR, "od25.yaml")
     with open(yaml_path, 'w', encoding='utf-8') as f:
-        dest_dir_forward = DEST_DIR.replace('\\', '/')
-        f.write(f"path: {dest_dir_forward}\n")
+        dest_path = DEST_DIR.replace('\\', '/')
+        f.write(f"path: {dest_path}\n")
         f.write("train: images/train\n")
         f.write("val: images/val\n\n")
         f.write(f"nc: {len(TARGET_CLASSES)}\n")
@@ -101,9 +112,7 @@ def prepare_od_dataset():
         for idx, display in enumerate(DISPLAY_NAMES):
             f.write(f"  {idx}: {display}\n")
 
-    print("\n=== HOAN TAT! DATASET OD 25 LOP DA DUOC TAO TAI: ===")
-    print(f"  {DEST_DIR}")
-    print(f"  File YAML: {yaml_path}")
+    print(f"\n=== HOAN TAT! NHAN DA DUOC SUA CHUAN TAI: {DEST_DIR} ===")
 
 if __name__ == "__main__":
-    prepare_od_dataset()
+    prepare_od_dataset_v2()

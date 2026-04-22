@@ -1,34 +1,24 @@
-# CPPHM - Fruit Detection and Classification System
+# Dự án Nhận diện Trái cây - YOLOv8 Object Detection
 
-This repository contains source scripts for a fruit detection and classification system using YOLOv8.
+Dự án này sử dụng YOLOv8 để nhận diện 25 loại trái cây khác nhau thông qua Webcam.
 
-## Getting Started
+## Các tính năng chính:
+- Tự động cào dữ liệu ảnh từ Bing.
+- Chuẩn bị Dataset Object Detection (Bounding Box tự động).
+- Huấn luyện mô hình YOLOv8 (bản Pro - v8s).
+- Nhận diện thời gian thực qua Webcam với nhãn Tiếng Việt.
 
-### 1. Prerequisites
-Ensure you have Python 3.8+ installed.
+## Danh sách 25 loại trái cây:
+Táo, Chuối, Cà chua, Cam, Chanh, Bơ, Việt Quất, Dưa Vàng, Khế, Anh Đào, Dừa, Bắp, Cà Tím, Nho, Ổi, Kiwi, Vải, Xoài, Đào, Lê, Ớt Chuông, Thơm, Lựu, Dâu Tây, Dưa Hấu.
 
-### 2. Installation
-Clone the repository and install the dependencies:
-```bash
-pip install -r requirements.txt
-```
+## Hướng dẫn sử dụng:
+1. Cài đặt thư viện: `pip install ultralytics opencv-python`
+2. Chạy Webcam: `python webcam_od_25.py`
+3. Nếu muốn huấn luyện lại:
+   - `python prepare_od_25_classes.py`
+   - `python train_od_25.py`
 
-### 3. Model Weights
-The model weights (`.pt` files) are not included in this repository due to size limits. You should:
-- Download the base models (e.g., `yolov8n.pt`, `yolov8n-cls.pt`) automatically by running the training/inference scripts.
-- If you have custom trained weights, place them in the root directory.
-
-### 4. Datasets
-Datasets (like `fruits-360`) are excluded from this repository. 
-- You can use the `scrape_fruits.py` script to collect new data.
-- Or use the `prepare_*.py` scripts to organize your local dataset into the YOLO format.
-
-### 5. Running the System
-- **Webcam Detection:** Run `webcam_detect.py` or `webcam_od_25.py` for real-time detection.
-- **Training:** Run `train_demo.py` or `train_od_25.py` to start training on your local dataset.
-
-## Project Structure
-- `prepare_*.py`: Scripts for data preprocessing and splitting.
-- `train_*.py`: Training scripts for different models.
-- `webcam_*.py`: Inference scripts for real-time detection via webcam.
-- `scrape_fruits.py`: Tool for scraping images for new classes.
+## Cấu trúc thư mục quan trọng:
+- `runs_od25/`: Chứa file model đã huấn luyện (`best.pt`).
+- các file `prepare_*.py`: Script xử lý dữ liệu.
+- `webcam_od_25.py`: Script chạy chính.

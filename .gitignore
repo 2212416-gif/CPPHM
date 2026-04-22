@@ -1,4 +1,4 @@
-# Datasets
+# Datasets (Bo qua vi qua nang, dung Google Drive neu muon chia se anh)
 fruits-360/
 Final_Fruit_Dataset_*/
 YOLO_*/
@@ -9,19 +9,10 @@ YOLO_*/
 # Training runs and outputs
 runs/
 runs_cls/
-runs_od25/
-
-# Model weights
-*.pt
-*.onnx
-*.engine
-
-# Dependencies
-ultralytics/
-node_modules/
-venv/
-.venv/
-env/
+# Cho phep dua file weights va log vao runs_od25
+!runs_od25/
+!runs_od25/**/weights/best.pt
+!runs_od25/**/od25.yaml
 
 # Python caches
 __pycache__/
