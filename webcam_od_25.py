@@ -3,43 +3,78 @@ import os
 from ultralytics import YOLO
 
 def detect_od_webcam():
-    # Tìm mô hình OD mới nhất tự động
+    # 1. Tìm mô hình mới nhất tự động (Bao gồm cả bản PRO nếu đã xong)
     base_dir = r"D:\CPPHM\runs_od25"
-    model_path = r"D:\CPPHM\runs_od25\fruit_od_25\weights\best.pt"
-
+    model_path = ""
+    
     if os.path.exists(base_dir):
-        subdirs = [os.path.join(base_dir, d) for d in os.listdir(base_dir)
-                   if d.startswith("fruit_od_25")]
-        if subdirs:
-            latest_dir = max(subdirs, key=os.path.getmtime)
-            candidate = os.path.join(latest_dir, "weights", "best.pt")
-            if os.path.exists(candidate):
-                model_path = candidate
+        # Lấy tất cả file best.pt trong các thư mục con của runs_od25
+        all_weights = []
+        for root, dirs, files in os.walk(base_dir):
+            if "best.pt" in files:
+                path = os.path.join(root, "best.pt")
+                all_weights.append((path, os.path.getmtime(path)))
+        
+        if all_weights:
+            # Sắp xếp theo thời gian để lấy file mới nhất
+            all_weights.sort(key=lambda x: x[1], reverse=True)
+            model_path = all_weights[0][0]
 
-    if not os.path.exists(model_path):
-        print(f"Khong tim thay mo hinh tai: {model_path}")
-        print("Vui long chay train_od_25.py de huan luyen mo hinh truoc!")
+    if not model_path or not os.path.exists(model_path):
+        print(f"Chua tim thay mo hinh tai {base_dir}")
+        print("Vui long doi AI train xong hoac kiem tra lai thu muc.")
         return
 
-    print(f"=== DANG TAI MO HINH OD TU: {model_path} ===")
+    print(f"=== DANG DUNG MO HINH: {model_path} ===")
     model = YOLO(model_path)
-    print("=== TAI XONG! MO WEBCAM... (Bam 'q' de thoat) ===")
+    
+    # Lay danh sach ten tieng Viet tu file model (neu co)
+    class_names = model.names 
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("Loi: Khong the ket noi Webcam!")
+        print("Loi: Khong mo duoc Webcam!")
         return
+
+    # Ngưỡng tự tin (Tăng lên 0.5 để chống nhảy nhót)
+    CONF_THRESHOLD = 0.5
 
     while True:
         ret, frame = cap.read()
-        if not ret:
-            break
+        if not ret: break
 
-        # Chạy Object Detection - tự vẽ bbox + tên lớp lên frame
-        results = model(frame, conf=0.35, verbose=False)
-        annotated = results[0].plot()
+        # Chạy nhận diện
+        results = model(frame, conf=CONF_THRESHOLD, verbose=False)
+        
+        # Vẽ thủ công để tùy chỉnh % và chữ
+        for result in results:
+            boxes = result.boxes
+            for box in boxes:
+                # Lấy tọa độ
+                x1, y1, x2, y2 = box.xyxy[0]
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                
+                # Lấy độ tự tin và lớp
+                conf = float(box.conf[0])
+                cls = int(box.cls[0])
+                name = class_names[cls]
+                
+                # Chuyển đổi sang % (Ví dụ: 0.85 -> 85%)
+                percent = int(conf * 100)
+                label = f"{name} ({percent}%)"
+                
+                # Vẽ khung hình (Màu xanh neon cho chuyên nghiệp)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                
+                # Vẽ nền cho nhãn chữ
+                (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+                cv2.rectangle(frame, (x1, y1 - 20), (x1 + w, y1), (0, 255, 0), -1)
+                
+                # Ghi chữ nhãn
+                cv2.putText(frame, label, (x1, y1 - 5), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
 
-        cv2.imshow("NHAN DIEN TRAI CAY - Object Detection 25 Lop", annotated)
+        cv2.imshow("DEMO NHAN DIEN TRAI CAY 25 LOP", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
